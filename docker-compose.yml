@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database with TimescaleDB
+  postgres:
+    image: timescale/timescaledb:latest-pg14
+    environment:
+      POSTGRES_DB: server_monitoring
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Backend API
+  backend:
+    build: ./backend
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: server_monitoring
+      DB_USER: postgres
+      DB_PASSWORD: password
+      JWT_SECRET: your-production-jwt-secret-change-this
+      AGENT_SECRET: your-production-agent-secret-change-this
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  # Frontend (build served by nginx)
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      REACT_APP_API_URL: http://localhost:3001
+    depends_on:
+      - backend
+
+  # Example agent (optional - usually deployed on separate servers)
+  agent-example:
+    build: ./agent
+    environment:
+      SERVER_ID: your-server-id-from-dashboard
+      API_TOKEN: your-agent-token-from-dashboard
+      API_URL: http://backend:3001
+      INTERVAL: 60
+      SITE_URL: https://example.com
+      SERVER_NAME: Docker Example Server
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

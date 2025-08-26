@@ -1,0 +1,36 @@
+[
+  {
+    "id": 1,
+    "name": "Production Web Server",
+    "hostname": "web-01.prod.example.com",
+    "ip_address": "192.168.1.100",
+    "status": "online",
+    "last_metrics": {
+      "cpu_usage": 45.2,
+      "memory_usage": 78.1,
+      "disk_usage": 32.4,
+      "timestamp": "2025-08-23T23:29:46.456Z"
+    }
+  },
+  {
+    "id": 2,
+    "name": "Database Server",
+    "hostname": "db-01.prod.example.com",
+    "ip_address": "192.168.1.101",
+    "status": "online",
+    "last_metrics": {
+      "cpu_usage": 23.8,
+      "memory_usage": 65.3,
+      "disk_usage": 45.1,
+      "timestamp": "2025-08-23T23:29:46.456Z"
+    }
+  },
+  {
+    "id": 3,
+    "name": "Backup Server",
+    "hostname": "backup-01.prod.example.com",
+    "ip_address": "192.168.1.102",
+    "status": "offline",
+    "last_metrics": null
+  }
+]
