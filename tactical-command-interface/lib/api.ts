@@ -107,6 +107,21 @@ export async function fetchServerMetrics(serverId: string, hours: number = 24) {
   return response.json();
 }
 
+export async function deleteServer(serverId: string) {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/v1/servers/${serverId}`, {
+    method: 'DELETE',
+    headers,
+    cache: 'no-store'
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to delete server');
+  }
+  
+  return response.json();
+}
+
 // Settings API functions
 export async function fetchSettings() {
   const headers = await getAuthHeaders();
@@ -145,6 +160,7 @@ export const clientAPI = {
     getById: (id: string) => fetch(`${API_BASE_URL}/api/v1/servers/${id}`).then(res => res.json()),
     register: (serverData: { name: string; ip: string; site?: string; ubuntu_version?: string }) => 
       registerServer(serverData),
+    delete: (serverId: string) => deleteServer(serverId),
   },
   alerts: {
     getAll: (params?: { resolved?: boolean }) => fetchAlerts(params),

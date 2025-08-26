@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Filter, MoreHorizontal, MapPin, Clock, Shield } from "lucide-react"
+import { Search, Filter, MoreHorizontal, MapPin, Clock, Shield, Trash2 } from "lucide-react"
 import { clientAPI } from "@/lib/api"
 
 export default function AgentNetworkPage() {
@@ -12,6 +12,7 @@ export default function AgentNetworkPage() {
   const [selectedAgent, setSelectedAgent] = useState(null)
   const [servers, setServers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchServers = async () => {
@@ -52,6 +53,19 @@ export default function AgentNetworkPage() {
     if (cpu_usage > 70 || memory_usage > 75 || disk_usage > 80) return 'medium'
     
     return 'low'
+  }
+
+  // Delete server function
+  const handleDeleteServer = async (serverId: string) => {
+    try {
+      await clientAPI.servers.delete(serverId)
+      setServers(servers.filter(s => s.id.toString() !== serverId))
+      setDeleteConfirm(null)
+      setSelectedAgent(null)
+    } catch (error) {
+      console.error('Failed to delete server:', error)
+      alert('Failed to delete server')
+    }
   }
 
   // Calculate real statistics
@@ -220,9 +234,19 @@ export default function AgentNetworkPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <Button variant="ghost" size="icon" className="text-neutral-400 hover:text-orange-500">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDeleteConfirm(agent.id)
+                          }}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -307,6 +331,48 @@ export default function AgentNetworkPage() {
                   className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300 bg-transparent"
                 >
                   Send Message
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteConfirm(selectedAgent.id)}
+                  className="border-red-700 text-red-400 hover:bg-red-900/20 hover:text-red-300 bg-transparent ml-auto"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Agent
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <Card className="bg-neutral-900 border-red-700 w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold text-red-500 tracking-wider flex items-center gap-2">
+                <Trash2 className="w-5 h-5" />
+                CONFIRM DELETION
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-neutral-300">
+                Are you sure you want to delete this agent? This action cannot be undone and will remove all associated metrics and data.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleDeleteServer(deleteConfirm)}
+                  className="bg-red-500 hover:bg-red-600 text-white"
+                >
+                  Delete
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteConfirm(null)}
+                  className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300 bg-transparent"
+                >
+                  Cancel
                 </Button>
               </div>
             </CardContent>

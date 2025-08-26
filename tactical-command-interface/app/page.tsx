@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, LogOut, Cog } from "lucide-react"
+import { ChevronRight, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, LogOut, Cog, UserCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs"
 import CommandCenterPage from "./command-center/page"
@@ -9,6 +9,8 @@ import AgentNetworkPage from "./agent-network/page"
 import OperationsPage from "./operations/page"
 import IntelligencePage from "./intelligence/page"
 import SystemsPage from "./systems/page"
+import AlertsPage from "./alerts/page"
+import AdminDashboard from "./admin/page"
 import SettingsPage from "./settings/page"
 
 export default function TacticalDashboard() {
@@ -95,6 +97,9 @@ export default function TacticalDashboard() {
               { id: "intelligence", icon: Shield, label: "INTELLIGENCE" },
               { id: "systems", icon: Settings, label: "SYSTEMS" },
               { id: "alerts", icon: Bell, label: "ALERTS" },
+              ...(user?.primaryEmailAddress?.emailAddress === "synthetixofficial@gmail.com" ? 
+                [{ id: "admin", icon: UserCheck, label: "ADMIN" }] : []
+              ),
               { id: "settings", icon: Cog, label: "SETTINGS" },
             ].map((item) => (
               <button
@@ -169,6 +174,8 @@ export default function TacticalDashboard() {
           {activeSection === "operations" && <OperationsPage />}
           {activeSection === "intelligence" && <IntelligencePage />}
           {activeSection === "systems" && <SystemsPage />}
+          {activeSection === "alerts" && <AlertsPage />}
+          {activeSection === "admin" && <AdminDashboard />}
           {activeSection === "settings" && <SettingsPage />}
         </div>
       </div>
