@@ -1,9 +1,11 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
-import { fetchServers, fetchAlerts, fetchAlertStats, fetchServerMetrics } from "@/lib/api"
+import { fetchServers, fetchAlerts, fetchAlertStats, fetchServerMetrics, deleteServer } from "@/lib/api"
 import TopDashAgentRegistration from "@/components/topdash-agent-registration"
+import { Trash2 } from "lucide-react"
 
 export default function CommandCenterPage() {
   const [servers, setServers] = useState<any[]>([])
@@ -76,6 +78,22 @@ export default function CommandCenterPage() {
   }, [selectedServer, refreshInterval])
 
   const activeServers = servers.filter((server: any) => server.last_metrics).length;
+  
+  const handleDeleteServer = async (serverId: string, serverName: string) => {
+    if (confirm(`Are you sure you want to delete server "${serverName}"? This action cannot be undone.`)) {
+      try {
+        await deleteServer(serverId);
+        // Remove the server from the local state
+        setServers(servers.filter(server => server.id !== serverId));
+        if (selectedServer === serverId) {
+          setSelectedServer(null);
+        }
+      } catch (error) {
+        console.error('Failed to delete server:', error);
+        alert('Failed to delete server. Please try again.');
+      }
+    }
+  };
   
   const getStatusColor = (metrics: any) => {
     if (!metrics) return 'neutral-500';
@@ -153,6 +171,17 @@ export default function CommandCenterPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-neutral-400 hover:text-red-500 hover:bg-red-500/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteServer(server.id, server.name);
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                       <div className={`w-2 h-2 rounded-full bg-${statusColor}`}></div>
                       <span className={`text-xs font-medium ${statusColor === 'green-500' ? 'text-green-500' : statusColor === 'yellow-500' ? 'text-yellow-500' : statusColor === 'red-500' ? 'text-red-500' : 'text-neutral-500'}`}>
                         {statusText}

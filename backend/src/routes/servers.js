@@ -1,6 +1,8 @@
 const express = require('express');
 const { query } = require('../utils/sqlite');
 const { authenticateToken, requireViewer, authenticateApiKey } = require('../middleware/auth');
+const fs = require('fs');
+const path = require('path');
 
 const router = express.Router();
 
@@ -144,8 +146,24 @@ router.post('/register', (req, res, next) => {
   }
 });
 
-// Delete server
-router.delete('/:id', authenticateToken, async (req, res) => {
+// Delete server (accepts both JWT tokens and API keys)
+router.delete('/:id', (req, res, next) => {
+  // Try API key first, then JWT token
+  const authHeader = req.headers['authorization'];
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    
+    // Check if it's an API key (starts with api_ or is our dev key)
+    if (token.startsWith('api_') || token === 'dev-api-key-1234567890') {
+      return authenticateApiKey(req, res, next);
+    } else {
+      return authenticateToken(req, res, next);
+    }
+  } else {
+    return authenticateToken(req, res, next);
+  }
+}, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -162,6 +180,26 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Delete server error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Agent installation script endpoint (public access)
+router.get('/agent-install', (req, res) => {
+  try {
+    const scriptPath = path.join(__dirname, '../../scripts/agent-install.sh');
+    
+    if (!fs.existsSync(scriptPath)) {
+      return res.status(404).json({ error: 'Installation script not found' });
+    }
+    
+    const scriptContent = fs.readFileSync(scriptPath, 'utf8');
+    
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', 'inline');
+    res.send(scriptContent);
+  } catch (error) {
+    console.error('Agent install script error:', error);
+    res.status(500).json({ error: 'Failed to load installation script' });
   }
 });
 

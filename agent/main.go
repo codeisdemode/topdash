@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -16,6 +18,10 @@ import (
 	"github.com/shirou/gopsutil/net"
 )
 
+const (
+	Version = "1.1.0"
+)
+
 type Config struct {
 	ServerID    string `json:"server_id"`
 	APIToken    string `json:"api_token"`
@@ -23,6 +29,7 @@ type Config struct {
 	Interval    int    `json:"interval"`
 	SiteURL     string `json:"site_url"`
 	ServerName  string `json:"server_name"`
+	AgentVersion string `json:"agent_version"`
 }
 
 type Metrics struct {
@@ -51,31 +58,44 @@ func main() {
 	ticker := time.NewTicker(time.Duration(config.Interval) * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		metrics, err := collectMetrics(config)
-		if err != nil {
-			log.Printf("Error collecting metrics: %v", err)
-			continue
-		}
+	// Check for updates on startup
+	checkForUpdates(config)
 
-		err = sendMetrics(config, metrics)
-		if err != nil {
-			log.Printf("Error sending metrics: %v", err)
-		} else {
-			log.Printf("Metrics sent successfully: CPU=%.1f%%, Memory=%.1f%%, Disk=%.1f%%", 
-				metrics.CPUUsage, metrics.MemoryUsage, metrics.DiskUsage)
+	updateTicker := time.NewTicker(30 * time.Minute) // Check for updates every 30 minutes
+	defer updateTicker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			metrics, err := collectMetrics(config)
+			if err != nil {
+				log.Printf("Error collecting metrics: %v", err)
+				continue
+			}
+
+			err = sendMetrics(config, metrics)
+			if err != nil {
+				log.Printf("Error sending metrics: %v", err)
+			} else {
+				log.Printf("Metrics sent successfully: CPU=%.1f%%, Memory=%.1f%%, Disk=%.1f%%", 
+					metrics.CPUUsage, metrics.MemoryUsage, metrics.DiskUsage)
+			}
+
+		case <-updateTicker.C:
+			checkForUpdates(config)
 		}
 	}
 }
 
 func loadConfig() (*Config, error) {
 	config := &Config{
-		ServerID:   os.Getenv("SERVER_ID"),
-		APIToken:   os.Getenv("API_TOKEN"),
-		APIURL:     getEnv("API_URL", "http://localhost:3001"),
-		Interval:   getEnvInt("INTERVAL", 60),
-		SiteURL:    os.Getenv("SITE_URL"),
-		ServerName: getEnv("SERVER_NAME", "Unknown Server"),
+		ServerID:     os.Getenv("SERVER_ID"),
+		APIToken:     os.Getenv("API_TOKEN"),
+		APIURL:       getEnv("API_URL", "http://localhost:3001"),
+		Interval:     getEnvInt("INTERVAL", 60),
+		SiteURL:      os.Getenv("SITE_URL"),
+		ServerName:   getEnv("SERVER_NAME", "Unknown Server"),
+		AgentVersion: Version,
 	}
 
 	if config.ServerID == "" || config.APIToken == "" {
@@ -86,10 +106,20 @@ func loadConfig() (*Config, error) {
 }
 
 func collectMetrics(config *Config) (*Metrics, error) {
-	// Get CPU usage
-	cpuPercent, err := cpu.Percent(time.Second, false)
+	// Get CPU usage - use 3-second average for more stable readings
+	cpuPercent, err := cpu.Percent(3*time.Second, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get CPU usage: %v", err)
+	}
+	
+	// If we get an unusually high reading (spike), take another measurement
+	if len(cpuPercent) > 0 && cpuPercent[0] > 80.0 {
+		time.Sleep(1 * time.Second)
+		cpuPercent2, err := cpu.Percent(2*time.Second, false)
+		if err == nil && len(cpuPercent2) > 0 {
+			// Use the average of both measurements to smooth out spikes
+			cpuPercent[0] = (cpuPercent[0] + cpuPercent2[0]) / 2
+		}
 	}
 
 	// Get memory usage
@@ -210,4 +240,121 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func checkForUpdates(config *Config) {
+	log.Printf("Checking for agent updates...")
+	
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest("GET", config.APIURL+"/api/v1/agent/update-check", nil)
+	if err != nil {
+		log.Printf("Update check request error: %v", err)
+		return
+	}
+
+	req.Header.Set("X-Agent-Token", config.APIToken)
+	req.Header.Set("X-Server-ID", config.ServerID)
+	req.Header.Set("X-Agent-Version", Version)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Update check failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		var updateInfo struct {
+			UpdateAvailable bool   `json:"update_available"`
+			LatestVersion   string `json:"latest_version"`
+			DownloadURL     string `json:"download_url"`
+			Checksum        string `json:"checksum"`
+		}
+
+		if err := json.NewDecoder(resp.Body).Decode(&updateInfo); err != nil {
+			log.Printf("Failed to decode update info: %v", err)
+			return
+		}
+
+		if updateInfo.UpdateAvailable {
+			log.Printf("Update available: %s -> %s", Version, updateInfo.LatestVersion)
+			if err := performUpdate(updateInfo.DownloadURL, updateInfo.Checksum); err != nil {
+				log.Printf("Update failed: %v", err)
+			} else {
+				log.Printf("Update completed successfully!")
+				os.Exit(0) // Exit to allow service manager to restart
+			}
+		} else {
+			log.Printf("Agent is up to date (v%s)", Version)
+		}
+	} else {
+		log.Printf("Update check failed with status: %d", resp.StatusCode)
+	}
+}
+
+func performUpdate(downloadURL, expectedChecksum string) error {
+	log.Printf("Downloading update from: %s", downloadURL)
+	
+	// Download the new binary
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Get(downloadURL)
+	if err != nil {
+		return fmt.Errorf("download failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed with status: %d", resp.StatusCode)
+	}
+
+	// Read the update data
+	updateData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read update data: %v", err)
+	}
+
+	// Verify checksum if provided
+	if expectedChecksum != "" {
+		hasher := sha256.New()
+		hasher.Write(updateData)
+		actualChecksum := fmt.Sprintf("%x", hasher.Sum(nil))
+		
+		if actualChecksum != expectedChecksum {
+			return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedChecksum, actualChecksum)
+		}
+	}
+
+	// Get current executable path
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %v", err)
+	}
+
+	// Create backup of current binary
+	backupPath := exePath + ".bak"
+	if err := copyFile(exePath, backupPath); err != nil {
+		return fmt.Errorf("failed to create backup: %v", err)
+	}
+
+	// Write new binary
+	if err := os.WriteFile(exePath, updateData, 0755); err != nil {
+		// Restore from backup if update fails
+		if restoreErr := copyFile(backupPath, exePath); restoreErr != nil {
+			log.Printf("CRITICAL: Failed to restore from backup: %v", restoreErr)
+		}
+		return fmt.Errorf("failed to write new binary: %v", err)
+	}
+
+	// Clean up backup
+	os.Remove(backupPath)
+	
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0755)
 }

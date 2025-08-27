@@ -35,6 +35,13 @@ async function authenticateAgent(req, res, next) {
   const token = req.headers['x-agent-token'];
   const serverId = req.body.server_id;
 
+  console.log('Agent auth attempt:', { 
+    hasToken: !!token, 
+    hasServerId: !!serverId,
+    serverId: serverId,
+    tokenLength: token ? token.length : 0
+  });
+
   if (!token || !serverId) {
     return res.status(401).json({ error: 'Agent token and server ID required' });
   }

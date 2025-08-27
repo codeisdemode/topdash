@@ -21,6 +21,7 @@ const metricsRoutes = require('./routes/metrics');
 const alertRoutes = require('./routes/alerts');
 const apiKeyRoutes = require('./routes/api-keys');
 const settingsRoutes = require('./routes/settings');
+const publicRoutes = require('./routes/public');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -60,6 +61,8 @@ app.use('/api/v1/metrics', metricsRoutes);
 app.use('/api/v1/alerts', alertRoutes);
 app.use('/api/v1/api-keys', apiKeyRoutes);
 app.use('/api/v1/settings', settingsRoutes);
+app.use('/api/v1/public', publicRoutes);
+console.log('Public routes mounted');
 
 // Health check endpoint
 app.get('/health', (req, res) => {
