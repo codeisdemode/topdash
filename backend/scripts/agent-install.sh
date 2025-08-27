@@ -21,6 +21,7 @@ NC='\033[0m' # No Color
 API_KEY=""
 SERVER_NAME=""
 SITE_URL=""
+UPDATE_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -38,7 +39,12 @@ while [[ $# -gt 0 ]]; do
             ;;
         --help)
             echo "Usage: $0 --api-key=API_KEY [--server-name=\"Server Name\"] [--site-url=https://your-site.com]"
+            echo "       $0 --update (to update existing agent)"
             exit 0
+            ;;
+        --update)
+            UPDATE_MODE=true
+            shift
             ;;
         *)
             echo "Unknown option: $1"
@@ -46,13 +52,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-# Validate API key
-if [[ -z "$API_KEY" ]]; then
-    echo -e "${RED}Error: API key is required${NC}"
-    echo "Usage: $0 --api-key=API_KEY [--server-name=\"Server Name\"]"
-    exit 1
-fi
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
@@ -243,6 +242,20 @@ EOF
 
 # Main installation process
 main() {
+    # Handle update mode
+    if [ "$UPDATE_MODE" = true ]; then
+        update_agent
+        exit 0
+    fi
+    
+    # Validate API key for installation mode
+    if [[ -z "$API_KEY" ]]; then
+        echo -e "${RED}Error: API key is required${NC}"
+        echo "Usage: $0 --api-key=API_KEY [--server-name=\"Server Name\"]"
+        echo "       $0 --update (to update existing agent)"
+        exit 1
+    fi
+    
     echo -e "${GREEN}=== TopDash Server Monitoring Agent Installation ===${NC}"
     echo "API Key: ${API_KEY:0:8}..."
     
@@ -293,6 +306,46 @@ main() {
     echo "1. Check your TopDash dashboard for server metrics"
     echo "2. Monitor agent logs for any issues"
     echo "3. Configure alert thresholds in your dashboard settings"
+}
+
+# Function to update existing agent
+update_agent() {
+    echo -e "${BLUE}=== Updating TopDash Agent ===${NC}"
+    
+    # Check if agent is installed
+    if [ ! -f "$INSTALL_DIR/agent" ]; then
+        echo -e "${RED}Error: Agent not found at $INSTALL_DIR/agent${NC}"
+        echo "Please run the installation script without --update flag first"
+        exit 1
+    fi
+    
+    # Stop the agent service
+    echo "Stopping agent service..."
+    systemctl stop topdash-agent || true
+    
+    # Download latest agent binary
+    echo "Downloading latest agent..."
+    curl -sSL -o "$INSTALL_DIR/agent.new" "$API_URL/public/agent-binary"
+    
+    # Verify download
+    if [ ! -f "$INSTALL_DIR/agent.new" ]; then
+        echo -e "${RED}Error: Failed to download new agent binary${NC}"
+        exit 1
+    fi
+    
+    # Make executable
+    chmod +x "$INSTALL_DIR/agent.new"
+    
+    # Replace old binary
+    mv "$INSTALL_DIR/agent.new" "$INSTALL_DIR/agent"
+    
+    # Restart service
+    echo "Restarting agent service..."
+    systemctl start topdash-agent
+    
+    echo -e "${GREEN}=== Agent Update Complete! ===${NC}"
+    echo "Agent has been updated to the latest version"
+    systemctl status topdash-agent --no-pager
 }
 
 # Run main function
