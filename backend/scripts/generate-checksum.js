@@ -8,7 +8,7 @@ function generateChecksum(filePath) {
   return hashSum.digest('hex');
 }
 
-const agentPath = '../../../agent/monitoring-agent';
+const agentPath = '../agent/monitoring-agent';
 if (fs.existsSync(agentPath)) {
   const checksum = generateChecksum(agentPath);
   console.log('Agent checksum:', checksum);

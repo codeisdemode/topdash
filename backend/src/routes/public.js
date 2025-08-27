@@ -86,7 +86,7 @@ router.get('/agent/update-check', async (req, res) => {
       update_available: updateAvailable,
       latest_version: latestVersion,
       download_url: updateAvailable ? `${req.protocol}://${req.get('host')}/api/v1/public/agent-binary` : null,
-      checksum: updateAvailable ? '81b17ebd7f39d819e2aacf37ab2ada0edd45bba01c65c60ddd2268a12292fb57' : null
+      checksum: updateAvailable ? 'a69dbed2dd40cc32779191afa7ec793bf8ecafcea15db4210fecad07c989da9c' : null
     });
     
   } catch (error) {
