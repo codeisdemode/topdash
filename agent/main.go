@@ -246,7 +246,7 @@ func checkForUpdates(config *Config) {
 	log.Printf("Checking for agent updates...")
 	
 	client := &http.Client{Timeout: 30 * time.Second}
-	req, err := http.NewRequest("GET", config.APIURL+"/api/v1/agent/update-check", nil)
+	req, err := http.NewRequest("GET", config.APIURL+"/api/v1/public/agent/update-check", nil)
 	if err != nil {
 		log.Printf("Update check request error: %v", err)
 		return
