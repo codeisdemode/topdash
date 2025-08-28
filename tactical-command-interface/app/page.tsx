@@ -16,32 +16,9 @@ import SettingsPage from "./settings/page"
 export default function TacticalDashboard() {
   const [activeSection, setActiveSection] = useState("overview")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
-  const { user } = useUser()
+  // const { user } = useUser() // Disabled for development
 
-  useEffect(() => {
-    console.log('Component mounted, setting isMounted to true')
-    // Set a small timeout to allow Clerk to initialize
-    const timer = setTimeout(() => {
-      setIsMounted(true)
-    }, 100)
-    
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Prevent hydration errors by only rendering auth components after mount
-  if (!isMounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-center">
-          <h1 className="text-orange-500 text-2xl font-bold mb-4">TOPDASH</h1>
-          <p className="text-neutral-400">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Temporarily bypass Clerk authentication for development
+  // Temporarily bypass Clerk authentication for development - no loading state needed
   return (
     <div className="min-h-screen bg-black">
       {/* Uncomment this section when Clerk is ready
@@ -92,9 +69,7 @@ export default function TacticalDashboard() {
               { id: "intelligence", icon: Shield, label: "INTELLIGENCE" },
               { id: "systems", icon: Settings, label: "SYSTEMS" },
               { id: "alerts", icon: Bell, label: "ALERTS" },
-              ...(user?.primaryEmailAddress?.emailAddress === "synthetixofficial@gmail.com" ? 
-                [{ id: "admin", icon: UserCheck, label: "ADMIN" }] : []
-              ),
+              { id: "admin", icon: UserCheck, label: "ADMIN" }, // Always show for development
               { id: "settings", icon: Cog, label: "SETTINGS" },
             ].map((item) => (
               <button
