@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { ChevronRight, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, LogOut, Cog, UserCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs"
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser, ClerkLoaded, ClerkLoading } from "@clerk/nextjs"
 import CommandCenterPage from "./command-center/page"
 import AgentNetworkPage from "./agent-network/page"
 import OperationsPage from "./operations/page"
@@ -17,32 +17,25 @@ import LandingPage from "@/components/LandingPage"
 export default function TacticalDashboard() {
   const [activeSection, setActiveSection] = useState("overview")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
   const { user } = useUser()
-
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  // Prevent hydration errors by only rendering auth components after mount
-  if (!isMounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-center">
-          <h1 className="text-orange-500 text-2xl font-bold mb-4">TOPDASH</h1>
-          <p className="text-neutral-400">Initializing...</p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <>
-      <SignedOut>
-        <LandingPage />
-      </SignedOut>
+      <ClerkLoading>
+        <div className="min-h-screen flex items-center justify-center bg-black">
+          <div className="text-center">
+            <h1 className="text-orange-500 text-2xl font-bold mb-4">TOPDASH</h1>
+            <p className="text-neutral-400">Loading...</p>
+          </div>
+        </div>
+      </ClerkLoading>
       
-      <SignedIn>
+      <ClerkLoaded>
+        <SignedOut>
+          <LandingPage />
+        </SignedOut>
+        
+        <SignedIn>
         <div className="flex h-screen">
       {/* Sidebar */}
       <div
@@ -157,7 +150,8 @@ export default function TacticalDashboard() {
         </div>
       </div>
     </div>
-      </SignedIn>
+        </SignedIn>
+      </ClerkLoaded>
     </>
   )
 }
