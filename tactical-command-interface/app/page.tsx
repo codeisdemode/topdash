@@ -21,20 +21,12 @@ export default function TacticalDashboard() {
 
   useEffect(() => {
     console.log('Component mounted, setting isMounted to true')
-    setIsMounted(true)
+    // Set a small timeout to allow Clerk to initialize
+    const timer = setTimeout(() => {
+      setIsMounted(true)
+    }, 100)
     
-    // Check if Clerk is loaded
-    if (typeof window !== 'undefined') {
-      const checkClerk = () => {
-        if (window.Clerk) {
-          console.log('Clerk is loaded:', window.Clerk)
-        } else {
-          console.log('Clerk not loaded yet')
-          setTimeout(checkClerk, 100)
-        }
-      }
-      checkClerk()
-    }
+    return () => clearTimeout(timer)
   }, [])
 
   // Prevent hydration errors by only rendering auth components after mount
@@ -49,8 +41,10 @@ export default function TacticalDashboard() {
     )
   }
 
+  // Temporarily bypass Clerk authentication for development
   return (
-    <>
+    <div className="min-h-screen bg-black">
+      {/* Uncomment this section when Clerk is ready
       <SignedOut>
         <div className="min-h-screen flex items-center justify-center bg-black">
           <div className="text-center">
@@ -66,6 +60,7 @@ export default function TacticalDashboard() {
       </SignedOut>
       
       <SignedIn>
+      */}
         <div className="flex h-screen">
       {/* Sidebar */}
       <div
@@ -180,7 +175,9 @@ export default function TacticalDashboard() {
         </div>
       </div>
     </div>
+      {/* 
       </SignedIn>
-    </>
+      */}
+    </div>
   )
 }
