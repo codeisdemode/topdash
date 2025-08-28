@@ -12,32 +12,37 @@ import SystemsPage from "./systems/page"
 import AlertsPage from "./alerts/page"
 import AdminDashboard from "./admin/page"
 import SettingsPage from "./settings/page"
+import LandingPage from "@/components/LandingPage"
 
 export default function TacticalDashboard() {
   const [activeSection, setActiveSection] = useState("overview")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  // const { user } = useUser() // Disabled for development
+  const [isMounted, setIsMounted] = useState(false)
+  const { user } = useUser()
 
-  // Temporarily bypass Clerk authentication for development - no loading state needed
-  return (
-    <div className="min-h-screen bg-black">
-      {/* Uncomment this section when Clerk is ready
-      <SignedOut>
-        <div className="min-h-screen flex items-center justify-center bg-black">
-          <div className="text-center">
-            <h1 className="text-orange-500 text-2xl font-bold mb-4">TOPDASH</h1>
-            <p className="text-neutral-400 mb-8">Access requires authentication</p>
-            <SignInButton mode="modal">
-              <Button className="bg-orange-600 hover:bg-orange-700">
-                Sign In to Continue
-              </Button>
-            </SignInButton>
-          </div>
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // Prevent hydration errors by only rendering auth components after mount
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center">
+          <h1 className="text-orange-500 text-2xl font-bold mb-4">TOPDASH</h1>
+          <p className="text-neutral-400">Initializing...</p>
         </div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <SignedOut>
+        <LandingPage />
       </SignedOut>
       
       <SignedIn>
-      */}
         <div className="flex h-screen">
       {/* Sidebar */}
       <div
@@ -69,7 +74,9 @@ export default function TacticalDashboard() {
               { id: "intelligence", icon: Shield, label: "INTELLIGENCE" },
               { id: "systems", icon: Settings, label: "SYSTEMS" },
               { id: "alerts", icon: Bell, label: "ALERTS" },
-              { id: "admin", icon: UserCheck, label: "ADMIN" }, // Always show for development
+              ...(user?.primaryEmailAddress?.emailAddress === "synthetixofficial@gmail.com" ? 
+                [{ id: "admin", icon: UserCheck, label: "ADMIN" }] : []
+              ),
               { id: "settings", icon: Cog, label: "SETTINGS" },
             ].map((item) => (
               <button
@@ -150,9 +157,7 @@ export default function TacticalDashboard() {
         </div>
       </div>
     </div>
-      {/* 
       </SignedIn>
-      */}
-    </div>
+    </>
   )
 }
