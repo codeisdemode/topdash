@@ -93,6 +93,34 @@ export async function fetchAlertStats() {
   return response.json();
 }
 
+export async function resolveAlert(alertId: string) {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/v1/alerts/${alertId}/resolve`, {
+    method: 'PATCH',
+    headers
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to resolve alert');
+  }
+  
+  return response.json();
+}
+
+export async function deleteAlert(alertId: string) {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/v1/alerts/${alertId}`, {
+    method: 'DELETE',
+    headers
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to delete alert');
+  }
+  
+  return response.json();
+}
+
 export async function fetchServerMetrics(serverId: string, hours: number = 24) {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/v1/metrics/${serverId}?hours=${hours}`, {
@@ -165,8 +193,8 @@ export const clientAPI = {
   alerts: {
     getAll: (params?: { resolved?: boolean }) => fetchAlerts(params),
     getStats: () => fetchAlertStats(),
-    resolve: (id: string) => 
-      fetch(`${API_BASE_URL}/api/v1/alerts/${id}/resolve`, { method: 'PATCH' }).then(res => res.json()),
+    resolve: (id: string) => resolveAlert(id),
+    delete: (id: string) => deleteAlert(id),
   },
   metrics: {
     getByServer: (serverId: string, hours: number = 24) => fetchServerMetrics(serverId, hours),

@@ -22,7 +22,7 @@ import {
   X,
   Target
 } from "lucide-react"
-import { fetchServers, fetchAlerts } from "@/lib/api"
+import { fetchServers, fetchAlerts, resolveAlert, deleteAlert } from "@/lib/api"
 
 interface Alert {
   id: string
@@ -54,77 +54,34 @@ export default function AlertsPage() {
     loadData()
     const interval = setInterval(loadData, 30000) // Refresh every 30 seconds
     return () => clearInterval(interval)
-  }, [])
+  }, [filterStatus])
 
   const loadData = async () => {
     try {
       const [serversData, alertsData] = await Promise.all([
         fetchServers().catch(() => []),
-        fetchAlerts({ resolved: filterStatus !== 'resolved' }).catch(() => [])
+        fetchAlerts({ resolved: filterStatus === 'resolved' }).catch(() => [])
       ])
       
       setServers(serversData)
       
-      // Generate some mock alerts based on server data and anomaly detection
-      const mockAlerts: Alert[] = []
-      
-      // Add some sample alerts
-      serversData.forEach(server => {
-        if (server.last_metrics) {
-          const { cpu_usage, memory_usage, disk_usage } = server.last_metrics
-          
-          // Generate threshold alerts
-          if (cpu_usage > 80) {
-            mockAlerts.push({
-              id: `cpu-${server.id}-${Date.now()}`,
-              type: 'threshold',
-              severity: cpu_usage > 95 ? 'critical' : cpu_usage > 90 ? 'warning' : 'info',
-              server_name: server.name,
-              server_id: server.id,
-              title: 'High CPU Usage Detected',
-              message: `CPU usage is ${cpu_usage.toFixed(1)}% on ${server.name}`,
-              metric: 'cpu',
-              value: cpu_usage,
-              threshold: 80,
-              status: 'active',
-              created_at: new Date(Date.now() - Math.random() * 3600000).toISOString()
-            })
-          }
-          
-          if (memory_usage > 85) {
-            mockAlerts.push({
-              id: `memory-${server.id}-${Date.now()}`,
-              type: 'threshold',
-              severity: memory_usage > 95 ? 'critical' : 'warning',
-              server_name: server.name,
-              server_id: server.id,
-              title: 'High Memory Usage',
-              message: `Memory usage is ${memory_usage.toFixed(1)}% on ${server.name}`,
-              metric: 'memory',
-              value: memory_usage,
-              threshold: 85,
-              status: 'active',
-              created_at: new Date(Date.now() - Math.random() * 7200000).toISOString()
-            })
-          }
-        }
-      })
+      // Convert database alerts to component format
+      const formattedAlerts: Alert[] = alertsData.map(alert => ({
+        id: alert.id.toString(),
+        type: alert.type || 'threshold',
+        severity: alert.severity,
+        server_name: alert.server_name || `Server ${alert.server_id}`,
+        server_id: alert.server_id,
+        title: alert.type === 'threshold' 
+          ? `High ${alert.message.includes('CPU') ? 'CPU' : alert.message.includes('memory') ? 'Memory' : 'Resource'} Usage`
+          : alert.message.split('.')[0] || 'Alert',
+        message: alert.message,
+        status: alert.resolved ? 'resolved' : 'active',
+        created_at: alert.created_at,
+        resolved_at: alert.resolved_at
+      }))
 
-      // Add some resolved/acknowledged alerts for demo
-      mockAlerts.push({
-        id: 'resolved-1',
-        type: 'service',
-        severity: 'warning',
-        server_name: 'Web Server',
-        server_id: 1,
-        title: 'Service Restart Required',
-        message: 'Nginx service required restart due to configuration change',
-        status: 'resolved',
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-        resolved_at: new Date(Date.now() - 82800000).toISOString()
-      })
-
-      setAlerts(mockAlerts)
+      setAlerts(formattedAlerts)
     } catch (error) {
       console.error('Failed to load alerts data:', error)
     } finally {
@@ -191,6 +148,42 @@ export default function AlertsPage() {
     acknowledged: alerts.filter(a => a.status === 'acknowledged').length
   }
 
+  const handleResolveAlert = async (alertId: string) => {
+    try {
+      await resolveAlert(alertId)
+      // Update local state to mark as resolved
+      setAlerts(prev => prev.map(alert => 
+        alert.id === alertId 
+          ? { ...alert, status: 'resolved' as const, resolved_at: new Date().toISOString() }
+          : alert
+      ))
+      setSelectedAlert(null)
+    } catch (error) {
+      console.error('Failed to resolve alert:', error)
+    }
+  }
+
+  const handleDeleteAlert = async (alertId: string) => {
+    try {
+      await deleteAlert(alertId)
+      // Remove from local state
+      setAlerts(prev => prev.filter(alert => alert.id !== alertId))
+      setSelectedAlert(null)
+    } catch (error) {
+      console.error('Failed to delete alert:', error)
+    }
+  }
+
+  const handleAcknowledgeAlert = (alertId: string) => {
+    // Update local state to mark as acknowledged
+    setAlerts(prev => prev.map(alert => 
+      alert.id === alertId 
+        ? { ...alert, status: 'acknowledged' as const, acknowledged_at: new Date().toISOString() }
+        : alert
+    ))
+    setSelectedAlert(null)
+  }
+
   if (loading) {
     return (
       <div className="p-6">
@@ -210,13 +203,32 @@ export default function AlertsPage() {
           <p className="text-sm text-neutral-400">Real-time alerts and notification management</p>
         </div>
         <div className="flex gap-2">
-          <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+          <Button 
+            onClick={() => {
+              // TODO: Open alert rules configuration modal
+              alert('Alert rules configuration coming soon!')
+            }}
+            className="bg-orange-500 hover:bg-orange-600 text-white"
+          >
             <Settings className="w-4 h-4 mr-2" />
             Configure Rules
           </Button>
-          <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+          <Button 
+            onClick={() => {
+              // Archive all resolved alerts
+              const resolvedAlerts = alerts.filter(a => a.status === 'resolved')
+              if (resolvedAlerts.length === 0) {
+                alert('No resolved alerts to archive')
+                return
+              }
+              if (confirm(`Archive ${resolvedAlerts.length} resolved alerts?`)) {
+                setAlerts(prev => prev.filter(alert => alert.status !== 'resolved'))
+              }
+            }}
+            className="bg-neutral-700 hover:bg-neutral-600 text-white"
+          >
             <Archive className="w-4 h-4 mr-2" />
-            Archive
+            Archive Resolved ({alerts.filter(a => a.status === 'resolved').length})
           </Button>
         </div>
       </div>
@@ -376,17 +388,27 @@ export default function AlertsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedAlert(alert)
+                        }}
                         className="text-neutral-400 hover:text-white h-8 w-8"
                       >
                         <Eye className="w-4 h-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-neutral-400 hover:text-green-500 h-8 w-8"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                      </Button>
+                      {alert.status === 'active' && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleAcknowledgeAlert(alert.id)
+                          }}
+                          className="text-neutral-400 hover:text-green-500 h-8 w-8"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -450,20 +472,29 @@ export default function AlertsPage() {
               )}
               
               <div className="flex gap-2 pt-4 border-t border-neutral-700">
-                <Button className="bg-green-500 hover:bg-green-600 text-white">
+                {selectedAlert.status === 'active' && (
+                  <Button 
+                    onClick={() => handleAcknowledgeAlert(selectedAlert.id)}
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Acknowledge
+                  </Button>
+                )}
+                <Button 
+                  onClick={() => handleResolveAlert(selectedAlert.id)}
+                  className="bg-green-500 hover:bg-green-600 text-white"
+                >
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  Acknowledge
-                </Button>
-                <Button className="bg-orange-500 hover:bg-orange-600 text-white">
-                  <Mail className="w-4 h-4 mr-2" />
-                  Send Notification
+                  Resolve
                 </Button>
                 <Button 
+                  onClick={() => handleDeleteAlert(selectedAlert.id)}
                   variant="outline"
-                  className="border-neutral-700 text-neutral-400 hover:bg-neutral-800"
+                  className="border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white"
                 >
                   <Archive className="w-4 h-4 mr-2" />
-                  Archive
+                  Delete
                 </Button>
               </div>
             </CardContent>
