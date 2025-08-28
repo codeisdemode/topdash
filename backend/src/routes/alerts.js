@@ -87,7 +87,23 @@ router.get('/stats', (req, res, next) => {
 });
 
 // Mark alert as resolved
-router.patch('/:id/resolve', authenticateToken, async (req, res) => {
+router.patch('/:id/resolve', (req, res, next) => {
+  // Try API key first, then JWT token
+  const authHeader = req.headers['authorization'];
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    
+    // Check if it's an API key (starts with api_ or is our dev key)
+    if (token.startsWith('api_') || token === 'dev-api-key-1234567890') {
+      return authenticateApiKey(req, res, next);
+    } else {
+      return authenticateToken(req, res, next);
+    }
+  } else {
+    return authenticateToken(req, res, next);
+  }
+}, async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -119,7 +135,23 @@ router.patch('/:id/resolve', authenticateToken, async (req, res) => {
 });
 
 // Delete alert
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', (req, res, next) => {
+  // Try API key first, then JWT token
+  const authHeader = req.headers['authorization'];
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    
+    // Check if it's an API key (starts with api_ or is our dev key)
+    if (token.startsWith('api_') || token === 'dev-api-key-1234567890') {
+      return authenticateApiKey(req, res, next);
+    } else {
+      return authenticateToken(req, res, next);
+    }
+  } else {
+    return authenticateToken(req, res, next);
+  }
+}, async (req, res) => {
   try {
     const { id } = req.params;
     
